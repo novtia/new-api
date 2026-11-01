@@ -99,6 +99,7 @@ export const CHANNEL_TYPES = {
   61: 'Task Plugin',
   62: 'vLLM',
   63: 'SGLang',
+  64: 'NovelAI',
 } as const
 
 export type ChannelProviderPresentation = {
@@ -167,6 +168,7 @@ export const CHANNEL_PROVIDER_PRESENTATION: Partial<
   },
   55: { descriptionKey: 'Connect to OpenAI Sora video generation services' },
   56: { descriptionKey: 'Access hosted model predictions through Replicate' },
+  64: { descriptionKey: 'Relay the NovelAI native image generation API' },
   57: { descriptionKey: 'Access Codex using ChatGPT subscription credentials' },
   58: {
     descriptionKey:

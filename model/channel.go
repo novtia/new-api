@@ -294,6 +294,69 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	}
 }
 
+// PeekEnabledKey returns an enabled key without advancing multi-key polling state.
+func (channel *Channel) PeekEnabledKey() (string, int, *types.NewAPIError) {
+	if !channel.ChannelInfo.IsMultiKey {
+		return channel.Key, 0, nil
+	}
+
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return "", 0, types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
+	}
+
+	lock := GetChannelPollingLock(channel.Id)
+	lock.Lock()
+	defer lock.Unlock()
+
+	statusList := channel.ChannelInfo.MultiKeyStatusList
+	enabledIdx := make([]int, 0, len(keys))
+	for i := range keys {
+		status := common.ChannelStatusEnabled
+		if statusList != nil {
+			if s, ok := statusList[i]; ok {
+				status = s
+			}
+		}
+		if status == common.ChannelStatusEnabled {
+			enabledIdx = append(enabledIdx, i)
+		}
+	}
+	if len(enabledIdx) == 0 {
+		return "", 0, types.NewError(errors.New("no enabled keys"), types.ErrorCodeChannelNoAvailableKey)
+	}
+
+	switch channel.ChannelInfo.MultiKeyMode {
+	case constant.MultiKeyModeRandom:
+		selectedIdx := enabledIdx[rand.Intn(len(enabledIdx))]
+		return keys[selectedIdx], selectedIdx, nil
+	case constant.MultiKeyModePolling:
+		channelInfo, err := CacheGetChannelInfo(channel.Id)
+		if err != nil {
+			return "", 0, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
+		start := channelInfo.MultiKeyPollingIndex
+		if start < 0 || start >= len(keys) {
+			start = 0
+		}
+		for i := range keys {
+			idx := (start + i) % len(keys)
+			status := common.ChannelStatusEnabled
+			if statusList != nil {
+				if s, ok := statusList[idx]; ok {
+					status = s
+				}
+			}
+			if status == common.ChannelStatusEnabled {
+				return keys[idx], idx, nil
+			}
+		}
+		return keys[enabledIdx[0]], enabledIdx[0], nil
+	default:
+		return keys[enabledIdx[0]], enabledIdx[0], nil
+	}
+}
+
 func (channel *Channel) SaveChannelInfo() error {
 	return DB.Model(channel).Update("channel_info", channel.ChannelInfo).Error
 }

@@ -277,7 +277,10 @@ export const channelFormSchema = z
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
-    vertex_project_id: z.string().optional(), // Vertex AI specific (api_key mode only)
+    vertex_project_id: z
+      .string()
+      .regex(/^[A-Za-z0-9_.:-]*$/, 'Vertex AI project ID is invalid')
+      .optional(), // Vertex AI specific
     aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
     aws_api_type: z.enum(['invoke_model', 'mantle']).optional(),
     azure_responses_version: z.string().optional(), // Azure specific
@@ -724,6 +727,14 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     }
   } else {
     delete settingsObj.vertex_key_type
+    delete settingsObj.vertex_project_id
+  }
+
+  // Add vertex_project_id for Vertex AI channels (type 41)
+  const vertexProjectId = formData.vertex_project_id?.trim()
+  if (formData.type === 41 && vertexProjectId) {
+    settingsObj.vertex_project_id = vertexProjectId
+  } else if ('vertex_project_id' in settingsObj) {
     delete settingsObj.vertex_project_id
   }
 

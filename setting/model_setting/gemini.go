@@ -51,7 +51,7 @@ var defaultGeminiSettings = GeminiSettings{
 	ThinkingAdapterEnabled:                false,
 	ThinkingAdapterBudgetTokensPercentage: 0.6,
 	FunctionCallThoughtSignatureEnabled:   true,
-	RemoveFunctionResponseIdEnabled:       true,
+	RemoveFunctionResponseIdEnabled:       false,
 }
 
 // 全局实例

@@ -33,6 +33,11 @@ var accessTokenExemptRoutes = []string{
 	"GET /api/home_page_content",
 	"GET /api/ratio_config",
 	"GET /api/user/groups",
+	"GET /api/public_key/config",
+	"GET /api/public_key/discord/start",
+	"GET /api/public_key/discord/callback",
+	"POST /api/public_key/unlock",
+	"POST /api/public_key/redeem",
 
 	// Anonymous account entry points.
 	"GET /api/verification",

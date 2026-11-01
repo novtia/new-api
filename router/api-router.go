@@ -61,6 +61,18 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/oauth/:provider", middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.TryUserAuth(), controller.HandleOAuth)
 		apiRouter.GET("/ratio_config", middleware.CriticalRateLimit(), controller.GetRatioConfig)
 
+		// 公益密钥：访客通过 Discord 领取各自的 Key（详见 controller/public_key.go）
+		publicKeyRoute := apiRouter.Group("/public_key")
+		{
+			publicKeyRoute.GET("/config", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetPublicKeyConfig)
+			publicKeyRoute.GET("/discord/start", middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.TurnstileCheck(), controller.PublicKeyDiscordStart)
+			publicKeyRoute.GET("/discord/callback", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.PublicKeyDiscordCallback)
+			publicKeyRoute.POST("/unlock", middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.TurnstileCheck(), controller.BalanceUnlock)
+			publicKeyRoute.POST("/redeem", middleware.CriticalRateLimit(), middleware.DisableCache(), anonymousRequestBodyLimit, controller.PublicKeyRedeem)
+			publicKeyRoute.GET("/claims", middleware.AdminAuth(), middleware.DisableCache(), controller.ListPublicKeyClaims)
+			publicKeyRoute.POST("/claims/:id/ban", middleware.AdminAuth(), middleware.DisableCache(), controller.BanPublicKeyClaim)
+		}
+
 		apiRouter.POST("/stripe/webhook", anonymousRequestBodyLimit, controller.StripeWebhook)
 		apiRouter.POST("/creem/webhook", anonymousRequestBodyLimit, controller.CreemWebhook)
 		apiRouter.POST("/waffo/webhook", anonymousRequestBodyLimit, controller.WaffoWebhook)
@@ -297,7 +309,7 @@ func SetApiRouter(router *gin.Engine) {
 		}
 
 		usageRoute := apiRouter.Group("/usage")
-		usageRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
+		usageRoute.Use(middleware.CORS(), middleware.BalanceQueryRateLimit())
 		{
 			tokenUsageRoute := usageRoute.Group("/token")
 			tokenUsageRoute.Use(middleware.TokenAuthReadOnly())
@@ -355,7 +367,7 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
 
-		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
+		logRoute.Use(middleware.CORS(), middleware.BalanceQueryRateLimit())
 		{
 			logRoute.GET("/token", middleware.TokenAuthReadOnly(), controller.GetLogByKey)
 		}

@@ -47,6 +47,13 @@ export const apiKeySchema = z.object({
   model_limits: z.string().nullish().default(''),
   allow_ips: z.string().nullish().default(''),
   allow_user_quota_query: z.boolean().optional().default(false),
+  is_public_pool: z.boolean().optional(),
+  pool_parent_id: z.number().optional(),
+  pool_flagged_at: z.number().optional(),
+  daily_cap_quota: z.number().optional(),
+  hourly_cap_quota: z.number().optional(),
+  daily_cap_count: z.number().optional(),
+  daily_cap_images: z.number().optional(),
 })
 
 export type ApiKey = z.infer<typeof apiKeySchema>
@@ -93,6 +100,11 @@ export interface ApiKeyFormData {
   model_limits: string
   allow_ips: string
   allow_user_quota_query: boolean
+  is_public_pool: boolean
+  daily_cap_quota?: number
+  hourly_cap_quota?: number
+  daily_cap_count?: number
+  daily_cap_images?: number
   group: string
   auto_groups: string[]
   cross_group_retry: boolean

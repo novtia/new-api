@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>API Key 余额自查</title>
+<style>
+  :root {
+    --bg: #f3f6fb;
+    --card: #fff;
+    --text: #172033;
+    --muted: #6b7690;
+    --line: #dde3ee;
+    --primary: #2563d8;
+    --primary-dark: #1e4fb0;
+    --warn-bg: #fff5ea;
+    --warn-line: #f0b06a;
+    --warn-text: #8a3b0a;
+    --danger: #c62828;
+    --ok: #1b7f4b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 16px 64px;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .card {
+    max-width: 840px;
+    margin: 0 auto;
+    padding: 32px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(30, 50, 90, .08);
+  }
+  h1 { margin: 0 0 6px; font-size: 26px; }
+  h2 { margin: 28px 0 12px; font-size: 16px; }
+  .sub { margin: 0 0 20px; color: var(--muted); }
+  .notice {
+    display: none;
+    margin-bottom: 20px;
+    padding: 14px 18px;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-line);
+    border-left: 4px solid #e0701a;
+    border-radius: 8px;
+    color: var(--warn-text);
+  }
+  .notice.show { display: block; }
+  .notice strong { display: block; margin-bottom: 4px; font-size: 15px; }
+  label.field { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; }
+  .input-row { display: flex; gap: 8px; }
+  input[type=text], input[type=password] {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 14px;
+    font: inherit;
+    font-size: 15px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    outline: none;
+  }
+  input[type=text]:focus, input[type=password]:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 216, .15);
+  }
+  .ghost {
+    padding: 0 14px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+  }
+  .check { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; }
+  .hint { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+  button.primary {
+    width: 100%;
+    margin-top: 18px;
+    padding: 13px;
+    background: var(--primary);
+    border: 0;
+    border-radius: 8px;
+    color: #fff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.primary:hover:not(:disabled) { background: var(--primary-dark); }
+  button.primary:disabled { opacity: .6; cursor: wait; }
+  .error {
+    display: none;
+    margin-top: 16px;
+    padding: 10px 14px;
+    background: #fdecea;
+    border: 1px solid #f3b8b3;
+    border-radius: 8px;
+    color: var(--danger);
+  }
+  .error.show { display: block; }
+  .verify { display: none; margin-top: 12px; padding: 12px 14px; background: #f1f7ff; border: 1px solid #c9dcf7; border-radius: 8px; }
+  .verify p { margin: 0 0 8px; }
+  #result { display: none; }
+  #result.show { display: block; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .stat {
+    padding: 14px 16px;
+    background: #f7f9fd;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .stat .k { color: var(--muted); font-size: 12px; }
+  .stat .v { margin-top: 2px; font-size: 22px; font-weight: 700; word-break: break-all; }
+  .stat .v.ok { color: var(--ok); }
+  .stat .v.bad { color: var(--danger); }
+  dl.meta { display: grid; grid-template-columns: 130px 1fr; gap: 8px 12px; margin: 0; }
+  dl.meta dt { color: var(--muted); }
+  dl.meta dd { margin: 0; word-break: break-all; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { padding: 1px 8px; background: #eef3ff; border-radius: 999px; font-size: 12px; color: #2f4a8a; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+  th, td { padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { background: #f7f9fd; font-weight: 600; color: var(--muted); }
+  tr:last-child td { border-bottom: 0; }
+  .claim {
+    display: none;
+    margin-bottom: 24px;
+    padding: 18px 20px;
+    background: #f1f7ff;
+    border: 1px solid #c9dcf7;
+    border-radius: 10px;
+  }
+  .claim.show { display: block; }
+  .claim h2 { margin: 0 0 6px; }
+  .claim p { margin: 4px 0; }
+  .claim .rules { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; }
+  #turnstile { margin-top: 12px; min-height: 0; }
+  button.discord { background: #5865f2; }
+  button.discord:hover:not(:disabled) { background: #4752c4; }
+  .claim .msg { display: none; margin-top: 12px; padding: 9px 12px; border-radius: 8px; }
+  .claim .msg.show { display: block; }
+  .claim .msg.err { background: #fdecea; border: 1px solid #f3b8b3; color: var(--danger); }
+  .claim .msg.ok { background: #eaf7f0; border: 1px solid #b6e0c9; color: var(--ok); }
+  .keybox { display: none; margin-top: 14px; }
+  .keybox.show { display: block; }
+  .keybox code {
+    display: block;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px dashed #8fb0e6;
+    border-radius: 8px;
+    font: 13px/1.5 ui-monospace, Consolas, monospace;
+    word-break: break-all;
+    user-select: all;
+  }
+  .keybox .row, .endpoint .row { display: flex; gap: 8px; margin-top: 8px; }
+  .keybox .row button, .endpoint .row button { flex: 1; padding: 9px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; font: inherit; }
+  .endpoint { margin-top: 12px; }
+  .endpoint code.addr {
+    display: block;
+    margin-top: 6px;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px dashed #8fb0e6;
+    border-radius: 8px;
+    font: 13px/1.5 ui-monospace, Consolas, monospace;
+    word-break: break-all;
+    user-select: all;
+  }
+  .endpoint .paths { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; }
+  .endpoint .paths code { font-family: ui-monospace, Consolas, monospace; color: var(--text); }
+  .note { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+  .foot { margin-top: 22px; color: var(--muted); font-size: 12px; }
+  @media (max-width: 600px) {
+    .card { padding: 20px; }
+    .grid { grid-template-columns: 1fr; }
+    dl.meta { grid-template-columns: 1fr; gap: 0; }
+    dl.meta dt { margin-top: 8px; }
+  }
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>API Key 余额自查</h1>
+  <p class="sub">输入你拿到的 Key，查询剩余额度、有效期、可用模型和调用记录。</p>
+
+  <!-- 公告：留空则不显示；需要时改下面两行 -->
+  <div class="notice" id="notice"><strong id="noticeTitle"></strong><span id="noticeBody"></span></div>
+
+  <section class="claim" id="claim">
+    <h2>领取公益 Key</h2>
+    <p>用 Discord 登录即可免费领取一把自己的 Key。每个 Discord 账号只能有一把，丢失后重新登录可找回。</p>
+    <ul class="rules">
+      <li>需要是 odysseia 服务器成员（<a href="https://discord.gg/odysseia" target="_blank" rel="noopener">discord.gg/odysseia</a>），账号注册满 7 天、入群满 3 天。</li>
+      <li>每把 Key 每天最多使用 <span id="claimCap">$10</span>（北京时间 0 点重置），短时间内用量过快会被临时限制。</li>
+      <li>每把 Key 同时只能有 1 个请求。上一个还没返回时再发会失败，请等它结束后再发下一次。</li>
+      <li>额度来自公益池，池子用完后所有公益 Key 会暂停。请勿转卖或滥用，违规账号会被封禁。</li>
+    </ul>
+    <div class="endpoint">
+      <p>接口地址（兼容 OpenAI、Claude）。客户端的 Base URL 填下面这一行，API Key 填领取到的 Key。</p>
+      <code class="addr" id="apiBase"></code>
+      <div class="row"><button type="button" id="copyApi">复制接口地址</button></div>
+      <ul class="paths">
+        <li>对话：<code id="apiChat"></code></li>
+        <li>Claude：<code id="apiClaude"></code></li>
+        <li>请求头：<code>Authorization: Bearer</code> 加上你的 Key</li>
+      </ul>
+    </div>
+    <div id="turnstile"></div>
+    <button class="primary discord" id="claimBtn" type="button">用 Discord 登录并领取</button>
+    <div class="msg" id="claimMsg"></div>
+    <div class="keybox" id="keybox">
+      <code id="claimedKey"></code>
+      <div class="row">
+        <button type="button" id="copyKey">复制 Key</button>
+        <button type="button" id="useKey">用它查询余额</button>
+        <button type="button" id="forgetKey">清除本机记录</button>
+      </div>
+      <p class="note" id="keyNote"></p>
+    </div>
+  </section>
+
+  <form id="form" autocomplete="off">
+    <label class="field" for="key">API Key</label>
+    <div class="input-row">
+      <input id="key" type="password" placeholder="粘贴 sk-..." spellcheck="false" autocomplete="off" autocapitalize="off">
+      <button type="button" class="ghost" id="toggle">显示</button>
+    </div>
+    <label class="check"><input type="checkbox" id="withLogs"> 同时查询调用记录和模型统计</label>
+    <p class="hint">查询直接发往本站接口。手动粘贴查询的 Key 不会写入网址、浏览器存储或页面缓存，提交后输入框会自动清空。</p>
+    <button class="primary" id="submit" type="submit">查询剩余额度</button>
+  </form>
+
+  <div class="error" id="error"></div>
+  <div class="verify" id="verifyBox">
+    <p>请完成人机验证，通过后会自动继续刚才的查询。</p>
+    <div id="verifyTurnstile"></div>
+  </div>
+
+  <section id="result">
+    <h2>额度（单位：美元 USD）</h2>
+    <div class="grid">
+      <div class="stat"><div class="k" id="kTotal">总额度</div><div class="v" id="total">—</div></div>
+      <div class="stat"><div class="k" id="kUsed">已使用</div><div class="v" id="used">—</div></div>
+      <div class="stat"><div class="k" id="kRemain">剩余额度</div><div class="v" id="remain">—</div></div>
+    </div>
+
+    <h2>Key 信息</h2>
+    <dl class="meta">
+      <dt>名称</dt><dd id="name">—</dd>
+      <dt>到期时间</dt><dd id="expires">—</dd>
+      <dt class="ppRow" style="display:none">额度重置</dt><dd class="ppRow" id="ppReset" style="display:none">—</dd>
+      <dt class="ppRow" style="display:none">近 1 小时</dt><dd class="ppRow" id="ppHour" style="display:none">—</dd>
+      <dt class="ppRow" style="display:none">今日请求次数</dt><dd class="ppRow" id="ppCount" style="display:none">—</dd>
+      <dt class="ppRow" style="display:none">今日图片张数</dt><dd class="ppRow" id="ppImages" style="display:none">—</dd>
+      <dt class="ppRow" style="display:none">公益池状态</dt><dd class="ppRow" id="ppPool" style="display:none">—</dd>
+      <dt>可用模型</dt><dd id="models">—</dd>
+      <dt>查询时间</dt><dd id="queried">—</dd>
+    </dl>
+
+    <div id="logsBox" style="display:none">
+      <h2>近期消耗</h2>
+      <div class="grid">
+        <div class="stat"><div class="k">今天</div><div class="v" id="costToday">—</div></div>
+        <div class="stat"><div class="k">近 7 天</div><div class="v" id="cost7">—</div></div>
+        <div class="stat"><div class="k">近 30 天</div><div class="v" id="cost30">—</div></div>
+      </div>
+      <p class="note" id="logsNote"></p>
+
+      <h2>按模型汇总</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>模型</th><th>调用次数</th><th>输入 Token</th><th>输出 Token</th><th>费用 USD</th></tr></thead>
+          <tbody id="byModel"></tbody>
+        </table>
+      </div>
+
+      <h2>最近调用</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>时间</th><th>模型</th><th>输入</th><th>输出</th><th>耗时</th><th>费用 USD</th></tr></thead>
+          <tbody id="recent"></tbody>
+        </table>
+      </div>
+      <p class="note">仅显示最近 50 条；统计范围为系统保留的最近调用记录。</p>
+    </div>
+  </section>
+
+  <p class="foot">费用按本站计价实时折算，调用记录可能有数秒延迟。</p>
+</main>
+
+<script>
+(function () {
+  // ===== 可自行修改 =====
+  var NOTICE_TITLE = "";   // 例如："使用须知"；留空则不显示公告
+  var NOTICE_BODY  = "";   // 例如："Key 额度用完后将无法继续调用，请及时联系管理员。"
+  // ======================
+
+  var $ = function (id) { return document.getElementById(id); };
+  var quotaPerUnit = 500000;
+  var apiBase = location.origin && location.origin !== "null" ? location.origin + "/v1" : "";
+  if (apiBase) {
+    $("apiBase").textContent = apiBase;
+    $("apiChat").textContent = "POST " + apiBase + "/chat/completions";
+    $("apiClaude").textContent = "POST " + apiBase + "/messages";
+  }
+  $("copyApi").addEventListener("click", function () {
+    var btn = this;
+    if (!apiBase) return;
+    var done = function () { btn.textContent = "已复制"; setTimeout(function () { btn.textContent = "复制接口地址"; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(apiBase).then(done, function () {});
+    }
+  });
+
+  if (NOTICE_TITLE || NOTICE_BODY) {
+    $("noticeTitle").textContent = NOTICE_TITLE;
+    $("noticeBody").textContent = NOTICE_BODY;
+    $("notice").classList.add("show");
+  }
+
+  $("toggle").addEventListener("click", function () {
+    var input = $("key");
+    var show = input.type === "password";
+    input.type = show ? "text" : "password";
+    this.textContent = show ? "隐藏" : "显示";
+  });
+
+  function usd(quota) {
+    var v = Number(quota) / quotaPerUnit;
+    if (!isFinite(v)) return "—";
+    var abs = Math.abs(v);
+    var digits = abs === 0 ? 2 : abs >= 1 ? 4 : abs >= 0.01 ? 5 : 6;
+    return "$" + v.toFixed(digits);
+  }
+  function num(n) { return Number(n || 0).toLocaleString("en-US"); }
+  function fmtTime(sec) {
+    var d = new Date(sec * 1000);
+    var p = function (x) { return String(x).padStart(2, "0"); };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " +
+           p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+  }
+  function text(tag, value, cls) {
+    var el = document.createElement(tag);
+    el.textContent = value;
+    if (cls) el.className = cls;
+    return el;
+  }
+  function showError(msg) {
+    var box = $("error");
+    box.textContent = msg;
+    box.classList.add("show");
+    $("result").classList.remove("show");
+  }
+  function clearError() { $("error").classList.remove("show"); }
+
+  async function api(path, key) {
+    var res = await fetch(path, {
+      method: "GET",
+      headers: { "Authorization": "Bearer " + key },
+      cache: "no-store",
+      credentials: "omit",
+      referrerPolicy: "no-referrer"
+    });
+    var body = null;
+    try { body = await res.json(); } catch (e) { /* 非 JSON */ }
+    if (res.status === 429) {
+      var limited = new Error("查询过于频繁，请稍后再试。");
+      limited.rateLimited = true;
+      throw limited;
+    }
+    if (res.status === 401 || res.status === 403) {
+      var m = body && body.error && body.error.message || body && body.message || "";
+      throw new Error(m ? "Key 不可用：" + m : "Key 无效或已被禁用，请检查是否复制完整。");
+    }
+    if (!res.ok) throw new Error("查询失败（HTTP " + res.status + "）。");
+    if (!body) throw new Error("服务返回了无法识别的内容。");
+    if (body.success === false) throw new Error(body.message || "查询失败。");
+    return body;
+  }
+
+  function renderUsage(d) {
+    var unlimited = !!d.unlimited_quota;
+    var pp = d.public_pool && d.public_pool.is_pool_child ? d.public_pool : null;
+    var remain = $("remain");
+    Array.prototype.forEach.call(document.querySelectorAll(".ppRow"), function (el) {
+      el.style.display = pp ? "" : "none";
+    });
+    if (pp) {
+      // 公益 Key：真实约束是每日上限，而不是“无限”。
+      var left = Math.max(pp.daily_cap_quota - pp.daily_used_quota, 0);
+      $("kTotal").textContent = "每日额度";
+      $("kUsed").textContent = "今日已用";
+      $("kRemain").textContent = "今日剩余";
+      $("total").textContent = usd(pp.daily_cap_quota);
+      $("used").textContent = usd(pp.daily_used_quota);
+      remain.textContent = usd(left);
+      remain.className = "v " + (left > 0 && pp.pool_available ? "ok" : "bad");
+      $("ppReset").textContent = fmtTime(pp.reset_at) + "（北京时间 0 点）";
+      $("ppHour").textContent = usd(pp.hourly_used_quota) + " / " + usd(pp.hourly_cap_quota) + "（每小时上限）";
+      $("ppCount").textContent = pp.daily_cap_count > 0 ? pp.daily_used_count + " / " + pp.daily_cap_count + " 次" : "不限";
+      $("ppImages").textContent = pp.daily_cap_images > 0 ? pp.daily_used_images + " / " + pp.daily_cap_images + " 张" : "不限";
+      $("ppPool").textContent = pp.pool_available ? "正常" : "公益额度已发完，暂时无法调用";
+    } else {
+      $("kTotal").textContent = "总额度";
+      $("kUsed").textContent = "已使用";
+      $("kRemain").textContent = "剩余额度";
+      $("total").textContent = unlimited ? "无限" : usd(d.total_granted);
+      $("used").textContent = usd(d.total_used);
+      remain.textContent = unlimited ? "无限" : usd(d.total_available);
+      remain.className = "v " + (unlimited || d.total_available > 0 ? "ok" : "bad");
+    }
+
+    $("name").textContent = d.name || "—";
+    var exp = Number(d.expires_at || 0);
+    var expEl = $("expires");
+    if (!exp) {
+      expEl.textContent = "永不过期";
+    } else {
+      var expired = exp * 1000 < Date.now();
+      expEl.textContent = fmtTime(exp) + (expired ? "（已过期）" : "");
+    }
+    var modelsEl = $("models");
+    modelsEl.textContent = "";
+    var limits = d.model_limits_enabled && d.model_limits ? Object.keys(d.model_limits) : [];
+    if (limits.length) {
+      var wrap = document.createElement("div");
+      wrap.className = "tags";
+      limits.forEach(function (m) { wrap.appendChild(text("span", m, "tag")); });
+      modelsEl.appendChild(wrap);
+    } else {
+      modelsEl.textContent = "不限制";
+    }
+    $("queried").textContent = fmtTime(Date.now() / 1000);
+    // 接口可能附带 user_quota（Key 所属账户的总额度）；这是分发者的账户信息，页面刻意不展示。
+  }
+
+  function renderLogs(all) {
+    var logs = all.filter(function (l) { return l.type === 2; });
+    var now = Date.now() / 1000;
+    var startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    var sum = function (since) {
+      return logs.reduce(function (acc, l) { return l.created_at >= since ? acc + (l.quota || 0) : acc; }, 0);
+    };
+    $("costToday").textContent = usd(sum(startOfToday.getTime() / 1000));
+    $("cost7").textContent = usd(sum(now - 7 * 86400));
+    $("cost30").textContent = usd(sum(now - 30 * 86400));
+
+    var oldest = all.length ? all[all.length - 1].created_at : 0;
+    $("logsNote").textContent = logs.length
+      ? "基于最近 " + num(all.length) + " 条记录统计" + (oldest ? "（最早 " + fmtTime(oldest) + "）" : "") +
+        "；更早的记录不在统计范围内。"
+      : "暂无调用记录。";
+
+    var agg = {};
+    logs.forEach(function (l) {
+      var a = agg[l.model_name] || (agg[l.model_name] = { calls: 0, input: 0, output: 0, quota: 0 });
+      a.calls += 1; a.input += l.prompt_tokens || 0; a.output += l.completion_tokens || 0; a.quota += l.quota || 0;
+    });
+    var tbody = $("byModel");
+    tbody.textContent = "";
+    Object.keys(agg).sort(function (x, y) { return agg[y].quota - agg[x].quota; }).forEach(function (m) {
+      var a = agg[m], tr = document.createElement("tr");
+      tr.appendChild(text("td", m || "—"));
+      tr.appendChild(text("td", num(a.calls)));
+      tr.appendChild(text("td", num(a.input)));
+      tr.appendChild(text("td", num(a.output)));
+      tr.appendChild(text("td", usd(a.quota)));
+      tbody.appendChild(tr);
+    });
+    if (!tbody.children.length) {
+      var empty = document.createElement("tr");
+      var td = text("td", "暂无数据"); td.colSpan = 5; td.style.textAlign = "center";
+      empty.appendChild(td); tbody.appendChild(empty);
+    }
+
+    var recent = $("recent");
+    recent.textContent = "";
+    logs.slice(0, 50).forEach(function (l) {
+      var tr = document.createElement("tr");
+      tr.appendChild(text("td", fmtTime(l.created_at)));
+      tr.appendChild(text("td", l.model_name || "—"));
+      tr.appendChild(text("td", num(l.prompt_tokens)));
+      tr.appendChild(text("td", num(l.completion_tokens)));
+      tr.appendChild(text("td", (l.use_time || 0) + " s"));
+      tr.appendChild(text("td", usd(l.quota)));
+      recent.appendChild(tr);
+    });
+    $("logsBox").style.display = "";
+  }
+
+  async function loadQuotaUnit() {
+    try {
+      var r = await fetch("/api/status", { cache: "no-store", credentials: "omit" });
+      var j = await r.json();
+      var q = j && j.data && Number(j.data.quota_per_unit);
+      if (q > 0) quotaPerUnit = q;
+    } catch (e) { /* 使用默认换算 */ }
+  }
+
+  // ===== 公益 Key 领取 =====
+  var CLAIM_ERRORS = {
+    disabled: "公益领取暂未开放。",
+    no_pool: "公益额度已发完，暂时无法领取，请稍后再来。",
+    rate_limited: "操作过于频繁，请 10 分钟后再试。",
+    state_invalid: "登录已过期或链接无效，请重新点击领取。",
+    denied: "你取消了 Discord 授权。",
+    discord_error: "与 Discord 通信失败，请稍后重试。",
+    not_member: "你的 Discord 账号不在 odysseia 服务器中，请先加入 discord.gg/odysseia。",
+    account_too_new: "你的 Discord 账号注册时间太短（需满 7 天）。",
+    joined_too_recent: "你加入 odysseia 的时间太短（需满 3 天），请稍后再来。",
+    banned: "该 Discord 账号已被封禁，无法领取。",
+    ip_limit: "当前网络今天已领取过多次，请明天再试。",
+    busy: "当前领取人数过多，请稍后再试。",
+    internal: "服务暂时出错，请稍后重试。"
+  };
+  var turnstileToken = "";
+  var turnstileId = null;
+  var turnstileOn = false;
+
+  function claimMsg(kind, msg) {
+    var box = $("claimMsg");
+    box.className = "msg " + kind + " show";
+    box.textContent = msg;
+  }
+  function claimError(code) {
+    claimMsg("err", CLAIM_ERRORS[code] || ("领取失败（" + code + "）。"));
+  }
+
+  var cfgCache = null;
+  function getConfig() {
+    if (!cfgCache) {
+      cfgCache = fetch("/api/public_key/config", { cache: "no-store", credentials: "omit" })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { return j.data || null; })
+        .catch(function () { return null; });
+    }
+    return cfgCache;
+  }
+
+  var tsScript = null;
+  function ensureTurnstile() {
+    if (!tsScript) {
+      tsScript = new Promise(function (resolve) {
+        if (window.turnstile) { resolve(true); return; }
+        var s = document.createElement("script");
+        s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        s.async = true;
+        s.onload = function () { resolve(true); };
+        s.onerror = function () { tsScript = null; resolve(false); };
+        document.head.appendChild(s);
+      });
+    }
+    return tsScript;
+  }
+
+  async function loadTurnstile(siteKey) {
+    if (!(await ensureTurnstile())) return false;
+    turnstileId = window.turnstile.render("#turnstile", {
+      sitekey: siteKey,
+      callback: function (t) { turnstileToken = t; },
+      "expired-callback": function () { turnstileToken = ""; },
+      "error-callback": function () { turnstileToken = ""; }
+    });
+    return true;
+  }
+
+  // 查询过于频繁时要求人机验证；验证通过后服务端提高该访客的查询额度，并自动重试刚才的查询。
+  var verifyWidget = null;
+  var pendingQuery = null;
+  async function needVerify(retry) {
+    var cfg = await getConfig();
+    if (!cfg || !cfg.turnstile_enabled) { showError("查询过于频繁，请稍后再试。"); return; }
+    pendingQuery = retry;
+    showError("查询过于频繁，请先完成下方的人机验证。");
+    $("verifyBox").style.display = "block";
+    if (!(await ensureTurnstile())) { showError("人机验证组件加载失败，请检查网络后刷新页面。"); return; }
+    if (verifyWidget === null) {
+      verifyWidget = window.turnstile.render("#verifyTurnstile", {
+        sitekey: cfg.turnstile_site_key,
+        callback: onVerified
+      });
+    } else {
+      window.turnstile.reset(verifyWidget);
+    }
+  }
+  async function onVerified(token) {
+    var failed = "";
+    try {
+      var r = await fetch("/api/public_key/unlock?turnstile=" + encodeURIComponent(token), {
+        method: "POST", cache: "no-store", credentials: "omit"
+      });
+      var j = await r.json();
+      if (!j.success) failed = j.message || "请重试";
+    } catch (e) { failed = "网络异常，请稍后再试"; }
+    if (failed) {
+      showError("人机验证未通过：" + failed);
+      window.turnstile.reset(verifyWidget);
+      return;
+    }
+    $("verifyBox").style.display = "none";
+    clearError();
+    var retry = pendingQuery;
+    pendingQuery = null;
+    if (retry) retry();
+  }
+
+  // 领取到的公益 Key 只保存在访客自己的浏览器里，30 天后自动失效，可随时手动清除。
+  var SAVED_KEY = "moyan_public_key";
+  var SAVE_DAYS = 30;
+  function saveClaimed(data) {
+    try {
+      localStorage.setItem(SAVED_KEY, JSON.stringify({
+        key: data.key, name: data.discord_name || "", cap: data.daily_cap_usd || 0,
+        expires: Date.now() + SAVE_DAYS * 86400 * 1000
+      }));
+    } catch (e) { /* 隐私模式等：忽略，仍可用 Discord 找回 */ }
+  }
+  function loadSaved() {
+    try {
+      var v = JSON.parse(localStorage.getItem(SAVED_KEY) || "null");
+      if (v && v.key && v.expires > Date.now()) return v;
+      localStorage.removeItem(SAVED_KEY);
+    } catch (e) { /* 数据损坏则当作没有 */ }
+    return null;
+  }
+
+  function showClaimedKey(data, fromSaved) {
+    $("claimedKey").textContent = data.key;
+    $("keybox").classList.add("show");
+    $("claimBtn").style.display = "none";
+    $("turnstile").style.display = "none";
+    if (!fromSaved) saveClaimed(data);
+    var saved = loadSaved();
+    var until = saved ? "已保存在本浏览器，有效至 " + fmtTime(saved.expires / 1000).slice(0, 10) + "。" : "";
+    $("keyNote").textContent = (fromSaved ? "这是保存在本浏览器里的 Key。" :
+      (data.existing ? "你已领取过，这是你原来的 Key。" : "领取成功！")) +
+      "每天最多使用 $" + Number(data.daily_cap_usd || 0).toString() + "。" + until +
+      "丢失后可再次用同一个 Discord 账号登录找回。公共电脑请点“清除本机记录”。";
+    claimMsg("ok", "你好，" + (data.discord_name || "访客") + "！");
+    $("forgetKey").onclick = function () {
+      try { localStorage.removeItem(SAVED_KEY); } catch (e) { /* 忽略 */ }
+      location.reload();
+    };
+    $("copyKey").onclick = function () {
+      var btn = this;
+      var done = function () { btn.textContent = "已复制"; setTimeout(function () { btn.textContent = "复制 Key"; }, 1500); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(data.key).then(done, function () { selectKey(); });
+      } else { selectKey(); }
+    };
+    $("useKey").onclick = function () {
+      $("key").value = data.key;
+      $("form").scrollIntoView({ behavior: "smooth" });
+      $("submit").focus();
+    };
+  }
+  function selectKey() {
+    var r = document.createRange();
+    r.selectNodeContents($("claimedKey"));
+    var sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(r);
+    claimMsg("ok", "已选中 Key，请按 Ctrl+C 复制。");
+  }
+
+  async function claimInit() {
+    // 处理 Discord 回调带回来的结果，随后立刻清掉地址栏中的片段。
+    var frag = new URLSearchParams(location.hash.replace(/^#/, ""));
+    var ticket = frag.get("ticket"), err = frag.get("error");
+    if (ticket || err) history.replaceState(null, "", location.pathname + location.search);
+
+    // 本机已保存且未过期：直接展示，不需要再登录 Discord。
+    var savedKey = (!ticket && !err) ? loadSaved() : null;
+    if (savedKey) {
+      $("claim").classList.add("show");
+      showClaimedKey({ key: savedKey.key, discord_name: savedKey.name, daily_cap_usd: savedKey.cap }, true);
+      return;
+    }
+
+    var cfg = await getConfig();
+    if (!cfg) return;
+
+    if (cfg.daily_cap_usd) $("claimCap").textContent = "$" + Number(cfg.daily_cap_usd).toString();
+    // 即使池子暂时没有额度，也要把回调结果展示给访客。
+    if (!cfg.available && !ticket && !err) return;
+    $("claim").classList.add("show");
+
+    if (ticket) {
+      try {
+        var res = await fetch("/api/public_key/redeem", {
+          method: "POST", cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticket: ticket })
+        });
+        var body = await res.json();
+        if (body.success) { showClaimedKey(body.data); return; }
+        claimError(body.code || body.message || "state_invalid");
+      } catch (e) { claimError("discord_error"); }
+    } else if (err) {
+      claimError(err);
+    }
+    if (!cfg.available) { $("claimBtn").disabled = true; claimError(cfg.reason || "disabled"); return; }
+
+    turnstileOn = !!cfg.turnstile_enabled;
+    if (turnstileOn) {
+      var ok = await loadTurnstile(cfg.turnstile_site_key);
+      if (!ok) { claimMsg("err", "人机验证组件加载失败，请检查网络后刷新页面。"); }
+    }
+  }
+
+  $("claimBtn").addEventListener("click", async function () {
+    var btn = this;
+    if (turnstileOn && !turnstileToken) { claimMsg("err", "请先完成上方的人机验证。"); return; }
+    btn.disabled = true;
+    var label = btn.textContent;
+    btn.textContent = "正在跳转 Discord…";
+    try {
+      var q = turnstileOn ? "?turnstile=" + encodeURIComponent(turnstileToken) : "";
+      var r = await fetch("/api/public_key/discord/start" + q, { cache: "no-store", credentials: "omit" });
+      var j = await r.json();
+      if (j.success && j.data && j.data.url) { location.href = j.data.url; return; }
+      claimError(j.code || (j.message && CLAIM_ERRORS[j.message] ? j.message : "internal"));
+      if (j.message && !CLAIM_ERRORS[j.message]) claimMsg("err", j.message);
+    } catch (e) {
+      claimMsg("err", "网络异常，请稍后再试。");
+    }
+    // Turnstile 令牌只能用一次，失败后需要重新验证。
+    turnstileToken = "";
+    if (turnstileId !== null && window.turnstile) window.turnstile.reset(turnstileId);
+    btn.disabled = false;
+    btn.textContent = label;
+  });
+
+  claimInit();
+
+  $("form").addEventListener("submit", async function (ev) {
+    ev.preventDefault();
+    clearError();
+    var key = $("key").value.trim();
+    var withLogs = $("withLogs").checked;
+    if (!key) { showError("请先粘贴 Key。"); return; }
+    if (!/^[\x21-\x7e]+$/.test(key)) { showError("Key 里含有空格或非法字符，请重新复制。"); return; }
+
+    $("key").value = "";
+    $("key").type = "password";
+    $("toggle").textContent = "显示";
+    runQuery(key, withLogs);
+  });
+
+  // Key 只在内存中停留；被限流需要验证时，闭包里暂存一份用于验证后重试，之后随页面销毁。
+  async function runQuery(key, withLogs) {
+    var btn = $("submit");
+    btn.disabled = true;
+    btn.textContent = "查询中…";
+    try {
+      await loadQuotaUnit();
+      var usage = await api("/api/usage/token/", key);
+      renderUsage(usage.data || {});
+      $("logsBox").style.display = "none";
+      if (withLogs) {
+        var logs = await api("/api/log/token", key);
+        renderLogs(logs.data || []);
+      }
+      $("result").classList.add("show");
+    } catch (e) {
+      if (e && e.rateLimited) {
+        needVerify(function () { runQuery(key, withLogs); });
+      } else {
+        showError(e && e.message ? e.message : "网络异常，请稍后再试。");
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "查询剩余额度";
+    }
+  }
+})();
+</script>
+</body>
+</html>

@@ -179,6 +179,35 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.DELETE("/models/:model", controller.RelayNotImplemented)
 	}
 
+	// NovelAI native image API. Clients keep NovelAI's own paths and bodies and
+	// only swap the base URL and token.
+	novelAIRouter := router.Group("/ai")
+	novelAIRouter.Use(middleware.RouteTag("relay"))
+	novelAIRouter.Use(middleware.SystemPerformanceCheck())
+	novelAIRouter.Use(middleware.TokenAuth())
+	novelAIRouter.Use(middleware.ModelRequestRateLimit())
+	novelAIRouter.Use(middleware.Distribute())
+	{
+		novelAIRouter.POST("/generate-image", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatNovelAI)
+		})
+		novelAIRouter.POST("/generate-image-stream", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatNovelAI)
+		})
+		novelAIRouter.POST("/upscale", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatNovelAI)
+		})
+	}
+
+	// NovelAI subscription & quota query (/user/subscription).
+	novelAIUserRouter := router.Group("/user")
+	novelAIUserRouter.Use(middleware.RouteTag("relay"))
+	novelAIUserRouter.Use(middleware.SystemPerformanceCheck())
+	novelAIUserRouter.Use(middleware.TokenAuthWithoutPoolLock())
+	{
+		novelAIUserRouter.GET("/subscription", controller.NovelAISubscription)
+	}
+
 	relayMjRouter := router.Group("/mj")
 	relayMjRouter.Use(middleware.RouteTag("relay"))
 	relayMjRouter.Use(middleware.SystemPerformanceCheck())

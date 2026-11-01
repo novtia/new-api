@@ -41,6 +41,11 @@ export function getApiKeyFormSchema(t: TFunction, maxAutoGroups = 5) {
       model_limits: z.array(z.string()),
       allow_ips: z.string().optional(),
       allow_user_quota_query: z.boolean(),
+      is_public_pool: z.boolean(),
+      pool_daily_cap_dollars: z.number().optional(),
+      pool_hourly_cap_dollars: z.number().optional(),
+      pool_daily_cap_count: z.number().int().min(0).optional(),
+      pool_daily_cap_images: z.number().int().min(0).optional(),
       group: z.string().optional(),
       auto_groups_mode: z.enum(['inherit', 'custom']),
       auto_groups: z.array(z.string()),
@@ -112,6 +117,7 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   model_limits: [],
   allow_ips: '',
   allow_user_quota_query: true,
+  is_public_pool: false,
   group: DEFAULT_GROUP,
   auto_groups_mode: 'inherit',
   auto_groups: [],
@@ -154,6 +160,18 @@ export function transformFormDataToPayload(
     model_limits: data.model_limits.join(','),
     allow_ips: data.allow_ips || '',
     allow_user_quota_query: data.allow_user_quota_query,
+    is_public_pool: data.is_public_pool,
+    // 仅公益密钥携带访客限额；留空（0）表示使用服务端默认值。
+    ...(data.is_public_pool
+      ? {
+          daily_cap_quota: parseQuotaFromDollars(data.pool_daily_cap_dollars || 0),
+          hourly_cap_quota: parseQuotaFromDollars(
+            data.pool_hourly_cap_dollars || 0
+          ),
+          daily_cap_count: data.pool_daily_cap_count || 0,
+          daily_cap_images: data.pool_daily_cap_images || 0,
+        }
+      : {}),
     group: data.group || '',
     auto_groups:
       data.group === 'auto' && data.auto_groups_mode === 'custom'
@@ -191,6 +209,15 @@ export function transformApiKeyToFormDefaults(
       : [],
     allow_ips: apiKey.allow_ips || '',
     allow_user_quota_query: !!apiKey.allow_user_quota_query,
+    is_public_pool: !!apiKey.is_public_pool,
+    pool_daily_cap_dollars: apiKey.daily_cap_quota
+      ? quotaUnitsToDollars(apiKey.daily_cap_quota)
+      : undefined,
+    pool_hourly_cap_dollars: apiKey.hourly_cap_quota
+      ? quotaUnitsToDollars(apiKey.hourly_cap_quota)
+      : undefined,
+    pool_daily_cap_count: apiKey.daily_cap_count || undefined,
+    pool_daily_cap_images: apiKey.daily_cap_images || undefined,
     group: apiKey.group || DEFAULT_GROUP,
     auto_groups_mode: autoGroupsMode,
     auto_groups: autoGroups,

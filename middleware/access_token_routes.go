@@ -223,6 +223,10 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"POST /api/token/batch":      accessTokenScopeRule("api_key:write"),
 	"POST /api/token/batch/keys": accessTokenScopeRule("api_key:reveal"),
 
+	// router/api-router.go: /api/public_key (admin claim review)
+	"GET /api/public_key/claims":          accessTokenScopeRule("api_key:read"),
+	"POST /api/public_key/claims/:id/ban": accessTokenScopeRule("api_key:write"),
+
 	// router/api-router.go: /api/redemption
 	"GET /api/redemption/":           accessTokenScopeRule("redemption:read"),
 	"GET /api/redemption/search":     accessTokenScopeRule("redemption:read"),

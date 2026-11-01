@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
@@ -80,6 +81,32 @@ func AttachFunctionCallThoughtSignature(opts *convmeta.Options, part *dto.Gemini
 		return false
 	}
 	return AttachThoughtSignatureBypass(opts, part)
+}
+
+// ThoughtSignatureString reads a Gemini thoughtSignature JSON string.
+func ThoughtSignatureString(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var value string
+	if kitutil.Unmarshal(raw, &value) != nil {
+		return ""
+	}
+	return value
+}
+
+// AssignThoughtSignature writes a client-supplied signature onto a part.
+// An existing signature is left unchanged.
+func AssignThoughtSignature(part *dto.GeminiPart, signature string) bool {
+	if part == nil || signature == "" || len(part.ThoughtSignature) > 0 {
+		return false
+	}
+	encoded, err := kitutil.Marshal(signature)
+	if err != nil {
+		return false
+	}
+	part.ThoughtSignature = encoded
+	return true
 }
 
 func AttachFirstTextThoughtSignature(opts *convmeta.Options, parts []dto.GeminiPart) bool {

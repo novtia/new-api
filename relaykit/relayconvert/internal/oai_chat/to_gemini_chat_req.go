@@ -4,16 +4,19 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	"context"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
 	sharedgemini "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/gemini"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto.GeneralOpenAIRequest, info convmeta.Meta) (*dto.GeminiChatRequest, error) {
@@ -260,7 +263,11 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 						Arguments:    args,
 					},
 				}
-				if shouldAttachThoughtSignature && !signatureAttached && sharedgemini.AttachFunctionCallThoughtSignature(opts, &toolCall) {
+				if signature := toolCallThoughtSignature(call); signature != "" {
+					if sharedgemini.AssignThoughtSignature(&toolCall, signature) {
+						signatureAttached = true
+					}
+				} else if shouldAttachThoughtSignature && !signatureAttached && sharedgemini.AttachFunctionCallThoughtSignature(opts, &toolCall) {
 					signatureAttached = true
 				}
 				parts = append(parts, toolCall)
@@ -360,6 +367,29 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		}
 	}
 
+	// Gemini rejects a generateContent call whose last turn is the model.
+	// Cursor's OpenAI chat requests often end on the previous assistant
+	// message; that is history, not a prefill.
+	end := len(geminiRequest.Contents)
+	for end > 0 {
+		content := geminiRequest.Contents[end-1]
+		if content.Role != "model" || slices.ContainsFunc(content.Parts, func(part dto.GeminiPart) bool {
+			return part.FunctionCall != nil
+		}) {
+			break
+		}
+		end--
+	}
+	if end != len(geminiRequest.Contents) && end > 0 && geminiRequest.Contents[end-1].Role == "user" {
+		convdiag.Add(c, types.ConversionDiagnostic{
+			Code:     "trailing_assistant_omitted",
+			Path:     "messages",
+			Message:  "assistant output after the last user message or tool result was omitted; Gemini would reject it as a model turn",
+			Severity: types.ConversionDiagnosticWarning,
+		})
+		geminiRequest.Contents = geminiRequest.Contents[:end]
+	}
+
 	if len(systemContent) > 0 {
 		geminiRequest.SystemInstructions = &dto.GeminiChatContent{
 			Parts: []dto.GeminiPart{
@@ -371,4 +401,11 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 	}
 
 	return &geminiRequest, nil
+}
+
+func toolCallThoughtSignature(call dto.ToolCallRequest) string {
+	if call.ExtraContent == nil || call.ExtraContent.Google == nil {
+		return ""
+	}
+	return strings.TrimSpace(call.ExtraContent.Google.ThoughtSignature)
 }

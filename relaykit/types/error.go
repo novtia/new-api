@@ -85,6 +85,9 @@ const (
 	// quota error
 	ErrorCodeInsufficientUserQuota      ErrorCode = "insufficient_user_quota"
 	ErrorCodePreConsumeTokenQuotaFailed ErrorCode = "pre_consume_token_quota_failed"
+
+	// public pool visitor key daily request/image limit
+	ErrorCodePublicPoolLimitReached ErrorCode = "public_pool_limit_reached"
 )
 
 type NewAPIError struct {

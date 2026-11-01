@@ -133,7 +133,7 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
     'gemini.function_call_thought_signature_enabled':
       defaultValues.gemini.function_call_thought_signature_enabled ?? true,
     'gemini.remove_function_response_id_enabled':
-      defaultValues.gemini.remove_function_response_id_enabled ?? true,
+      defaultValues.gemini.remove_function_response_id_enabled ?? false,
   })
 
   const buildFormDefaults = (
@@ -151,7 +151,7 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
       function_call_thought_signature_enabled:
         values.gemini.function_call_thought_signature_enabled ?? true,
       remove_function_response_id_enabled:
-        values.gemini.remove_function_response_id_enabled ?? true,
+        values.gemini.remove_function_response_id_enabled ?? false,
     },
   })
 
@@ -183,7 +183,7 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
       'gemini.function_call_thought_signature_enabled':
         defaultValues.gemini.function_call_thought_signature_enabled ?? true,
       'gemini.remove_function_response_id_enabled':
-        defaultValues.gemini.remove_function_response_id_enabled ?? true,
+        defaultValues.gemini.remove_function_response_id_enabled ?? false,
     }
 
     form.reset(buildFormDefaults(defaultValues))

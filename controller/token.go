@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -37,6 +38,71 @@ type tokenRequest struct {
 	AutoGroups tokenAutoGroupsInput `json:"auto_groups"`
 	// 指针区分“未传”和显式 false：新建时未传即开启，更新时未传则保留原值。
 	AllowUserQuotaQuery *bool `json:"allow_user_quota_query"`
+	// 公益密钥开关，仅管理员可设置；未传表示保持原值。
+	IsPublicPool *bool `json:"is_public_pool"`
+	// 公益密钥下每位访客的每日/每小时上限（额度单位，0 表示使用默认值）；未传表示保持原值。
+	DailyCapQuota  *int `json:"daily_cap_quota"`
+	HourlyCapQuota *int `json:"hourly_cap_quota"`
+	// 公益密钥下每位访客的每日请求次数/图片张数上限（0 表示不限制）；未传表示保持原值。
+	DailyCapCount  *int `json:"daily_cap_count"`
+	DailyCapImages *int `json:"daily_cap_images"`
+}
+
+const maxPoolCountCap = 1000000
+
+// applyPoolLimits 把请求中的访客限额写入公益密钥。未传的字段保持原值；负数或超出范围会报错。
+func applyPoolLimits(c *gin.Context, target *model.Token, request *tokenRequest) bool {
+	maxQuota := maxTokenQuota()
+	for _, field := range []struct {
+		value *int
+		dest  *int
+	}{
+		{request.DailyCapQuota, &target.DailyCapQuota},
+		{request.HourlyCapQuota, &target.HourlyCapQuota},
+	} {
+		if field.value == nil {
+			continue
+		}
+		if *field.value < 0 || *field.value > maxQuota {
+			common.ApiErrorMsg(c, "Visitor limit is out of range")
+			return false
+		}
+		*field.dest = *field.value
+	}
+	for _, field := range []struct {
+		value *int
+		dest  *int
+	}{
+		{request.DailyCapCount, &target.DailyCapCount},
+		{request.DailyCapImages, &target.DailyCapImages},
+	} {
+		if field.value == nil {
+			continue
+		}
+		if *field.value < 0 || *field.value > maxPoolCountCap {
+			common.ApiErrorMsg(c, "Visitor limit is out of range")
+			return false
+		}
+		*field.dest = *field.value
+	}
+	return true
+}
+
+// validatePublicPoolToggle 校验“设为公益密钥”的请求：仅管理员、访客 Key 不能作为公益密钥、公益密钥必须有额度上限。
+func validatePublicPoolToggle(c *gin.Context, target *model.Token, unlimited bool) bool {
+	if c.GetInt("role") < common.RoleAdminUser {
+		common.ApiErrorMsg(c, "Only administrators can mark a key as public")
+		return false
+	}
+	if target != nil && target.PoolParentId != 0 {
+		common.ApiErrorMsg(c, "A key claimed from a public pool cannot itself be a public key")
+		return false
+	}
+	if unlimited {
+		common.ApiErrorMsg(c, "A public key must have a quota limit; unlimited keys cannot be shared")
+		return false
+	}
+	return true
 }
 
 type tokenResponse struct {
@@ -271,6 +337,10 @@ func GetTokenUsage(c *gin.Context) {
 		"model_limits_enabled": token.ModelLimitsEnabled,
 		"expires_at":           expiredAt,
 	}
+	// 访客公益 Key：返回每日/每小时限额的使用情况，供余额页展示。
+	if info, ok := model.GetPoolChildInfoByID(token.Id, time.Now()); ok {
+		data["public_pool"] = info
+	}
 	// 用户额度只在令牌允许时返回；IP 白名单已由 TokenAuthReadOnly 检查。
 	if token.AllowUserQuotaQuery {
 		userQuota, err := model.GetUserQuota(token.UserId, false)
@@ -364,6 +434,15 @@ func AddToken(c *gin.Context) {
 		AutoGroups:         token.AutoGroups,
 	}
 	cleanToken.AllowUserQuotaQuery = request.AllowUserQuotaQuery == nil || *request.AllowUserQuotaQuery
+	if request.IsPublicPool != nil && *request.IsPublicPool {
+		if !validatePublicPoolToggle(c, nil, cleanToken.UnlimitedQuota) {
+			return
+		}
+		cleanToken.IsPublicPool = true
+		if !applyPoolLimits(c, &cleanToken, &request) {
+			return
+		}
+	}
 	err = cleanToken.Insert()
 	if err != nil {
 		common.ApiError(c, err)
@@ -459,6 +538,29 @@ func UpdateToken(c *gin.Context) {
 		if request.AllowUserQuotaQuery != nil {
 			cleanToken.AllowUserQuotaQuery = *request.AllowUserQuotaQuery
 		}
+		if request.IsPublicPool != nil && *request.IsPublicPool != cleanToken.IsPublicPool {
+			if *request.IsPublicPool && !validatePublicPoolToggle(c, cleanToken, cleanToken.UnlimitedQuota) {
+				return
+			}
+			if !*request.IsPublicPool && c.GetInt("role") < common.RoleAdminUser {
+				common.ApiErrorMsg(c, "Only administrators can change public key status")
+				return
+			}
+			cleanToken.IsPublicPool = *request.IsPublicPool
+		}
+		if cleanToken.IsPublicPool && cleanToken.UnlimitedQuota {
+			common.ApiErrorMsg(c, "A public key must have a quota limit; unlimited keys cannot be shared")
+			return
+		}
+		if cleanToken.IsPublicPool {
+			if c.GetInt("role") < common.RoleAdminUser && (request.DailyCapQuota != nil || request.HourlyCapQuota != nil || request.DailyCapCount != nil || request.DailyCapImages != nil) {
+				common.ApiErrorMsg(c, "Only administrators can change public key limits")
+				return
+			}
+			if !applyPoolLimits(c, cleanToken, &request) {
+				return
+			}
+		}
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
 		if token.Group != "auto" {
@@ -474,6 +576,12 @@ func UpdateToken(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if cleanToken.IsPublicPool && statusOnly == "" {
+		// 管理员调整访客限额后，立即同步给已领取的访客 Key。
+		if err := model.PropagatePoolLimits(cleanToken); err != nil {
+			common.SysError(common.LogText("failed to propagate public pool limits for token %d: %v", cleanToken.Id, err))
+		}
 	}
 	params["name"] = cleanToken.Name
 	if statusOnly != "" {
@@ -493,6 +601,9 @@ func UpdateToken(c *gin.Context) {
 			{"allow_ips", (previous.AllowIps == nil) != (cleanToken.AllowIps == nil) ||
 				(previous.AllowIps != nil && cleanToken.AllowIps != nil && *previous.AllowIps != *cleanToken.AllowIps)},
 			{"allow_user_quota_query", previous.AllowUserQuotaQuery != cleanToken.AllowUserQuotaQuery},
+			{"is_public_pool", previous.IsPublicPool != cleanToken.IsPublicPool},
+			{"public_pool_limits", previous.DailyCapQuota != cleanToken.DailyCapQuota || previous.HourlyCapQuota != cleanToken.HourlyCapQuota ||
+				previous.DailyCapCount != cleanToken.DailyCapCount || previous.DailyCapImages != cleanToken.DailyCapImages},
 			{"group", previous.Group != cleanToken.Group},
 			{"cross_group_retry", previous.CrossGroupRetry != cleanToken.CrossGroupRetry},
 			{"auto_groups", previous.AutoGroups != cleanToken.AutoGroups},

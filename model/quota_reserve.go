@@ -206,6 +206,9 @@ func TryReserveTokenQuota(id int, key string, quota int, unlimited bool) (bool, 
 	if quota == 0 {
 		return true, nil
 	}
+	if reserved, handled, err := tryReservePoolChild(id, key, quota); handled {
+		return reserved, err
+	}
 	if unlimited {
 		return true, DecreaseTokenQuota(id, key, quota)
 	}

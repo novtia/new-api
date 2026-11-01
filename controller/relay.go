@@ -107,6 +107,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError(upstreamURLs...))
+			case types.RelayFormatNovelAI:
+				c.JSON(newAPIError.StatusCode, gin.H{
+					"statusCode": newAPIError.StatusCode,
+					"message":    newAPIError.Error(),
+				})
 			case types.RelayFormatClaude:
 				c.JSON(newAPIError.StatusCode, gin.H{
 					"type":  "error",
@@ -163,6 +168,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		newAPIError = relay.RefundFailedRequestBilling(c, relayInfo, newAPIError)
 	}()
+	// Counted after the refund defer is armed, so a rejected request also
+	// returns the quota it just reserved.
+	if newAPIError = service.ReservePoolUsage(relayInfo); newAPIError != nil {
+		return
+	}
 
 	retryParam := &service.RetryParam{
 		Ctx:         c,

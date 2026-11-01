@@ -30,6 +30,22 @@ type Token struct {
 	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
 	AutoGroups         string         `json:"-" gorm:"type:text"`
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
+	// 公益密钥：IsPublicPool 标记资金池；PoolParentId 指向访客 Key 所属的公益密钥。
+	// 访客 Key 的实际消耗同步扣在父密钥额度上，并受每日/每小时上限约束，详见 public_pool.go。
+	IsPublicPool    bool  `json:"is_public_pool" gorm:"default:false"`
+	PoolParentId    int   `json:"pool_parent_id" gorm:"index;default:0"`
+	DailyCapQuota   int   `json:"daily_cap_quota" gorm:"default:0"`
+	DailyUsedQuota  int   `json:"daily_used_quota" gorm:"default:0"`
+	DailyResetDay   int   `json:"daily_reset_day" gorm:"default:0"`
+	HourlyCapQuota  int   `json:"hourly_cap_quota" gorm:"default:0"`
+	HourlyUsedQuota int   `json:"hourly_used_quota" gorm:"default:0"`
+	HourlyWindow    int64 `json:"hourly_window" gorm:"bigint;default:0"`
+	PoolFlaggedAt   int64 `json:"pool_flagged_at" gorm:"bigint;default:0"`
+	// 每日请求次数与每日图片张数上限（0 表示不限制），已用量随 DailyResetDay 一起按东八区自然日清零。
+	DailyCapCount   int `json:"daily_cap_count" gorm:"default:0"`
+	DailyUsedCount  int `json:"daily_used_count" gorm:"default:0"`
+	DailyCapImages  int `json:"daily_cap_images" gorm:"default:0"`
+	DailyUsedImages int `json:"daily_used_images" gorm:"default:0"`
 	// 允许用此令牌查询所属用户的额度；新建令牌默认开启，已有令牌升级后保持关闭
 	AllowUserQuotaQuery bool `json:"allow_user_quota_query"`
 }
@@ -250,6 +266,9 @@ func ValidateUserToken(key string) (token *Token, err error) {
 			}
 			return token, ErrTokenInvalid
 		}
+		if err := validatePoolChild(token.Id); err != nil {
+			return token, ErrTokenInvalid
+		}
 		return token, nil
 	}
 	common.SysLog(common.LogText("ValidateUserToken: failed to get token: %s", err.Error()))
@@ -316,7 +335,8 @@ func (token *Token) Update() (err error) {
 	}
 	return DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
 		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry", "auto_groups",
-		"allow_user_quota_query").Updates(token).Error
+		"allow_user_quota_query", "is_public_pool", "daily_cap_quota", "hourly_cap_quota",
+		"daily_cap_count", "daily_cap_images").Updates(token).Error
 }
 
 func (token *Token) SelectUpdate() (err error) {
@@ -331,6 +351,7 @@ func (token *Token) Delete() (err error) {
 	if cacheErr := invalidateTokenCacheForMutation(token.Key); cacheErr != nil {
 		common.SysLog(common.LogText("failed to invalidate token cache before delete: %s", cacheErr.Error()))
 	}
+	forgetPoolLink(token.Id)
 	return DB.Delete(token).Error
 }
 
@@ -377,7 +398,16 @@ func DeleteTokenById(id int, userId int) (err error) {
 	return token.Delete()
 }
 
+// IncreaseTokenQuota 退还令牌额度。访客公益 Key 的退款会同步退还给所属公益密钥。
 func IncreaseTokenQuota(tokenId int, key string, quota int) (err error) {
+	if err = increaseTokenQuotaCore(tokenId, key, quota); err != nil {
+		return err
+	}
+	poolChildRefund(tokenId, quota)
+	return nil
+}
+
+func increaseTokenQuotaCore(tokenId int, key string, quota int) (err error) {
 	if quota < 0 {
 		return errors.New("quota cannot be negative")
 	}
@@ -408,7 +438,16 @@ func increaseTokenQuota(id int, quota int) (err error) {
 	return err
 }
 
+// DecreaseTokenQuota 扣减令牌额度。访客公益 Key 的消耗会同步计入每日/每小时窗口并扣在所属公益密钥上。
 func DecreaseTokenQuota(id int, key string, quota int) (err error) {
+	if err = decreaseTokenQuotaCore(id, key, quota); err != nil {
+		return err
+	}
+	poolChildConsume(id, quota)
+	return nil
+}
+
+func decreaseTokenQuotaCore(id int, key string, quota int) (err error) {
 	if quota < 0 {
 		return errors.New("quota cannot be negative")
 	}

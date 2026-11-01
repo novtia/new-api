@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	sharedgemini "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/gemini"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
@@ -728,7 +729,7 @@ func geminiResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
 	if callID == "" {
 		callID = fmt.Sprintf("call_%s", kitutil.GetUUID())
 	}
-	return &dto.ToolCallResponse{
+	call := &dto.ToolCallResponse{
 		ID:   callID,
 		Type: "function",
 		Function: dto.FunctionResponse{
@@ -736,4 +737,10 @@ func geminiResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
 			Name:      item.FunctionCall.FunctionName,
 		},
 	}
+	if signature := sharedgemini.ThoughtSignatureString(item.ThoughtSignature); signature != "" {
+		call.ExtraContent = &dto.ToolCallExtraContent{
+			Google: &dto.GoogleToolCallExtra{ThoughtSignature: signature},
+		}
+	}
+	return call
 }

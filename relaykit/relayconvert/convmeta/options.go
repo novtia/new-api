@@ -77,7 +77,8 @@ type GeminiOptions struct {
 	// ThinkingAdapterBudgetTokensPercentage sizes thinkingBudget as a fraction
 	// of maxOutputTokens when the adapter fires.
 	ThinkingAdapterBudgetTokensPercentage float64
-	// FunctionCallThoughtSignatureEnabled attaches thoughtSignature bypass
+	// FunctionCallThoughtSignatureEnabled attaches the thoughtSignature bypass
+	// only when the client did not return the signature from the previous turn.
 	// values to function-call parts.
 	FunctionCallThoughtSignatureEnabled bool
 	// SupportsImagine reports whether the model supports image generation

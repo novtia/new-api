@@ -182,6 +182,12 @@ type RelayInfo struct {
 	ImageRequestCount     int
 	ImageQuotaBeforeGroup float64
 
+	// PoolUsageRequests and PoolUsageImages record what service.ReservePoolUsage
+	// counted against a public-pool visitor key, so a failed request returns
+	// exactly that. Both stay zero for every other token.
+	PoolUsageRequests int
+	PoolUsageImages   int
+
 	Request dto.Request
 
 	// RequestConversionChain records request format conversions in order, e.g.
@@ -697,7 +703,7 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = GenRelayInfoOpenAI(c, request)
 	case types.RelayFormatOpenAIAudio:
 		info = GenRelayInfoOpenAIAudio(c, request)
-	case types.RelayFormatOpenAIImage:
+	case types.RelayFormatOpenAIImage, types.RelayFormatNovelAI:
 		info = GenRelayInfoImage(c, request)
 	case types.RelayFormatOpenAIRealtime:
 		info = GenRelayInfoWs(c, ws)

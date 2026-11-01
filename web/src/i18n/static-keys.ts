@@ -79,6 +79,7 @@ export const STATIC_I18N_KEYS = [
   'Connect to Doubao Seedance video and Seedream image generation through Volcengine Ark',
   'Connect to OpenAI Sora video generation services',
   'Access hosted model predictions through Replicate',
+  'Relay the NovelAI native image generation API',
   'Access Codex using ChatGPT subscription credentials',
   'Configure endpoint routing, authentication and protocol conversion for different upstream services',
   "New API's flexible channel lets you configure upstream addresses and authentication per endpoint, choose native forwarding or supported protocol conversions, and configure model listing and balance queries independently",

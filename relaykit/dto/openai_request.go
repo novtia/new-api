@@ -409,11 +409,23 @@ func (r *GeneralOpenAIRequest) GetSystemRoleName() string {
 
 const CustomType = "custom"
 
+// ToolCallExtraContent carries vendor fields that OpenAI chat tool calls
+// must round-trip. Google's thought_signature is required on the next Vertex
+// turn and is not part of the function name or arguments.
+type ToolCallExtraContent struct {
+	Google *GoogleToolCallExtra `json:"google,omitempty"`
+}
+
+type GoogleToolCallExtra struct {
+	ThoughtSignature string `json:"thought_signature,omitempty"`
+}
+
 type ToolCallRequest struct {
-	ID       string          `json:"id,omitempty"`
-	Type     string          `json:"type"`
-	Function FunctionRequest `json:"function"`
-	Custom   json.RawMessage `json:"custom,omitempty"`
+	ID           string                `json:"id,omitempty"`
+	Type         string                `json:"type"`
+	Function     FunctionRequest       `json:"function"`
+	Custom       json.RawMessage       `json:"custom,omitempty"`
+	ExtraContent *ToolCallExtraContent `json:"extra_content,omitempty"`
 	// Native is a complete vendor tool object sent instead of the fields
 	// above. Function has no omitempty, so a non-function tool would
 	// otherwise carry "function":{"name":""}, which vendor schemas with

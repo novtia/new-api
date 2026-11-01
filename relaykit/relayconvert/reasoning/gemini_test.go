@@ -96,6 +96,13 @@ func TestRenderGeminiMapsAndClampsInsteadOfRejecting(t *testing.T) {
 			wantEffort: EffortNone,
 		},
 		{
+			name:       "high on gemini 4 argon stays a thinking level",
+			model:      "gemini-4-argon",
+			intent:     Intent{Mode: ModeEnabled, Effort: EffortHigh},
+			wantLevel:  "high",
+			wantEffort: EffortHigh,
+		},
+		{
 			name:      "unknown model gets no synthesized config",
 			model:     "gemini-2.0-flash-thinking-exp",
 			intent:    Intent{Mode: ModeEnabled, Source: SourceSuffix},

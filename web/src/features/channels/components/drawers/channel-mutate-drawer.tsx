@@ -3968,29 +3968,28 @@ export function ChannelMutateDrawer({
                     </FormItem>
                   )}
                 />
-                {vertexKeyType === 'api_key' && (
-                  <FormField
-                    control={form.control}
-                    name='vertex_project_id'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Vertex AI Project ID')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder={t('e.g., my-project-123')}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t(
-                            'Optional. Without it, Google picks the region; with it, requests go to the deployment region below.'
-                          )}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
+                <FormField
+                  control={form.control}
+                  name='vertex_project_id'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Vertex AI Project ID')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('e.g., my-project-123456')}
+                          disabled={sensitiveLocked}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Optional. Use the project ID, not the project number. If empty, the project in the service account JSON or in the key suffix is used'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 {vertexKeyType === 'json' && (
                   <FormItem>
                     <FormLabel>{t('Service account JSON file(s)')}</FormLabel>

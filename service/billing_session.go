@@ -332,6 +332,11 @@ func (s *BillingSession) shouldTrust(c *gin.Context) bool {
 		return false
 	}
 
+	// 访客公益 Key 必须每次预扣，否则每日/每小时上限无法在请求前生效。
+	if model.IsPublicPoolChild(s.relayInfo.TokenId) {
+		return false
+	}
+
 	trustQuota := operation_setting.GetQuotaSetting().TrustQuotaUSD * common.QuotaPerUnit
 	if trustQuota <= 0 || math.IsNaN(trustQuota) || math.IsInf(trustQuota, 0) {
 		return false

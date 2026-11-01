@@ -107,7 +107,23 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
         accessorKey: 'name',
         header: t('Name'),
         cell: ({ row }) => (
-          <span className='font-medium'>{row.getValue('name')}</span>
+          <span className='flex items-center gap-1.5'>
+            <span className='font-medium'>{row.getValue('name')}</span>
+            {row.original.is_public_pool && (
+              <StatusBadge
+                label={t('Public')}
+                variant='success'
+                copyable={false}
+              />
+            )}
+            {row.original.pool_parent_id ? (
+              <StatusBadge
+                label={t('Public')}
+                variant={row.original.pool_flagged_at ? 'danger' : 'neutral'}
+                copyable={false}
+              />
+            ) : null}
+          </span>
         ),
         size: 180,
         meta: { mobileTitle: true },

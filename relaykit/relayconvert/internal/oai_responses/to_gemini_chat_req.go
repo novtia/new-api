@@ -134,7 +134,11 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 			if err != nil {
 				return nil, err
 			}
-			sharedgemini.AttachFunctionCallThoughtSignature(opts, &part)
+			if signature := responsesThoughtSignature(item); signature != "" {
+				sharedgemini.AssignThoughtSignature(&part, signature)
+			} else {
+				sharedgemini.AttachFunctionCallThoughtSignature(opts, &part)
+			}
 			if callID != "" {
 				callNames[callID] = part.FunctionCall.FunctionName
 			}
@@ -251,6 +255,18 @@ func responsesContentPartToGeminiParts(c context.Context, part map[string]any) (
 	default:
 		return nil, nil
 	}
+}
+
+func responsesThoughtSignature(item map[string]any) string {
+	extra, ok := item["extra_content"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	google, ok := extra["google"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(kitutil.Interface2String(google["thought_signature"]))
 }
 
 func responsesFunctionCallItemToGeminiPart(item map[string]any, itemType string) (dto.GeminiPart, string, error) {

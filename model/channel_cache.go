@@ -1,9 +1,11 @@
 package model
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"math/rand"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -306,4 +308,47 @@ func CacheUpdateChannel(channel *Channel) {
 	// updatePricingLock while holding channelSyncLock would be an AB-BA deadlock.
 	channelSyncLock.Unlock()
 	InvalidatePricingCache()
+}
+
+// GetEnabledChannelsByGroupAndType returns enabled channels of channelType in
+// group ordered by priority descending, weight descending, and id ascending.
+func GetEnabledChannelsByGroupAndType(group string, channelType int) ([]*Channel, error) {
+	group = strings.TrimSpace(group)
+	if group == "" {
+		return nil, nil
+	}
+	if !common.MemoryCacheEnabled {
+		var channels []*Channel
+		query := ApplyChannelGroupFilter(
+			DB.Where("type = ? AND status = ?", channelType, common.ChannelStatusEnabled),
+			group,
+		)
+		if err := query.Order("COALESCE(priority, 0) DESC, COALESCE(weight, 0) DESC, id ASC").Find(&channels).Error; err != nil {
+			return nil, err
+		}
+		return channels, nil
+	}
+
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	channels := make([]*Channel, 0)
+	for _, channel := range channelsIDM {
+		if channel == nil || channel.Status != common.ChannelStatusEnabled || channel.Type != channelType {
+			continue
+		}
+		if slices.Contains(channel.GetGroups(), group) {
+			channels = append(channels, channel)
+		}
+	}
+	slices.SortFunc(channels, func(a, b *Channel) int {
+		if c := cmp.Compare(b.GetPriority(), a.GetPriority()); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(b.GetWeight(), a.GetWeight()); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Id, b.Id)
+	})
+	return channels, nil
 }

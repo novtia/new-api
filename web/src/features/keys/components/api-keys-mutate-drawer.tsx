@@ -369,6 +369,7 @@ export function ApiKeysMutateDrawer({
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const autoGroupsMode = form.watch('auto_groups_mode')
   const unlimitedQuota = form.watch('unlimited_quota')
+  const isPublicPool = form.watch('is_public_pool')
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -666,6 +667,133 @@ export function ApiKeysMutateDrawer({
                   </FormItem>
                 )}
               />
+
+              {isPublicPool && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name='pool_daily_cap_dollars'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Per-visitor daily limit')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            step={tokensOnly ? 1 : 0.01}
+                            placeholder={t('Default')}
+                            value={field.value ?? ''}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value === ''
+                                  ? undefined
+                                  : Number.parseFloat(e.target.value) || 0
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Most each visitor key may use per day (resets at 00:00 UTC+8). Leave empty to use the default.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='pool_hourly_cap_dollars'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Per-visitor hourly limit')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            step={tokensOnly ? 1 : 0.01}
+                            placeholder={t('Default')}
+                            value={field.value ?? ''}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value === ''
+                                  ? undefined
+                                  : Number.parseFloat(e.target.value) || 0
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Most each visitor key may use per hour, to stop quick drains. Leave empty to use 40% of the daily limit. Changes apply to existing visitor keys immediately.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='pool_daily_cap_count'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Per-visitor daily request limit')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            step={1}
+                            placeholder={t('Unlimited')}
+                            value={field.value ?? ''}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value === ''
+                                  ? undefined
+                                  : Math.max(0, Math.trunc(Number(e.target.value) || 0))
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Most requests each visitor key may send per day (resets at 00:00 UTC+8), regardless of cost. Leave empty for no limit.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='pool_daily_cap_images'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Per-visitor daily image limit')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            step={1}
+                            placeholder={t('Unlimited')}
+                            value={field.value ?? ''}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value === ''
+                                  ? undefined
+                                  : Math.max(0, Math.trunc(Number(e.target.value) || 0))
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Most images each visitor key may generate per day (resets at 00:00 UTC+8). Leave empty for no limit.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>                    )}
+                  />
+                </>
+              )}
             </SideDrawerSection>
 
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
@@ -760,6 +888,31 @@ export function ApiKeysMutateDrawer({
                             <FormDescription className='text-xs'>
                               {t(
                                 "When enabled, this API key can be used to check your account's remaining and used quota."
+                              )}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name='is_public_pool'
+                      render={({ field }) => (
+                        <FormItem className={sideDrawerSwitchItemClassName()}>
+                          <div className='flex flex-col gap-0.5'>
+                            <FormLabel className='text-sm'>
+                              {t('Public key')}
+                            </FormLabel>
+                            <FormDescription className='text-xs'>
+                              {t(
+                                'Visitors can claim their own capped keys from this key on the public balance page. Their usage is charged to this key. Requires a quota limit; administrators only.'
                               )}
                             </FormDescription>
                           </div>

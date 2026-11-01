@@ -150,6 +150,16 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Replicate model IDs',
     },
   },
+  64: {
+    id: 64,
+    name: CHANNEL_TYPES[64],
+    icon: 'replicate',
+    hints: {
+      baseUrl: 'https://image.novelai.net',
+      key: 'NovelAI persistent API token (pst-...)',
+      models: 'nai-diffusion-5-full,nai-diffusion-5-full-medium,nai-diffusion-5-curated,nai-diffusion-5-full-inpainting,nai-diffusion-5-curated-inpainting,nai-diffusion-4-5-full,nai-diffusion-4-5-curated',
+    },
+  },
   58: {
     id: 58,
     name: CHANNEL_TYPES[58],

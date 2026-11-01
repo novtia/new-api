@@ -55,8 +55,8 @@ type Adaptor struct {
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
-	// Vertex AI's generateContent schema does not expose the Gemini API's
-	// function-call identity fields. Strip both sides at this provider boundary.
+	// Older Vertex schemas reject function-call identity fields. The setting
+	// strips them; current Gemini tool calls need the ids to stay paired.
 	if model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled {
 		removeFunctionCallIDs(request)
 	}
@@ -131,6 +131,9 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix string) (string, error) {
 	region := GetModelRegion(info.ApiVersion, info.OriginModelName)
+	if strings.ContainsAny(strings.TrimSpace(info.ChannelOtherSettings.VertexProjectID), "/?#%\\ \t\r\n") {
+		return "", errors.New("invalid vertex project id")
+	}
 	if info.ChannelOtherSettings.VertexKeyType != dto.VertexKeyTypeAPIKey {
 		adc := &Credentials{}
 		if err := common.Unmarshal([]byte(info.ApiKey), adc); err != nil {
@@ -138,12 +141,16 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 		}
 		a.AccountCredentials = *adc
 
+		projectID := adc.ProjectID
+		if configured := strings.TrimSpace(info.ChannelOtherSettings.VertexProjectID); configured != "" {
+			projectID = configured
+		}
 		if a.RequestMode == RequestModeGemini {
-			return BuildGoogleModelURL(info.ChannelBaseUrl, DefaultAPIVersion, adc.ProjectID, region, modelName, suffix), nil
+			return BuildGoogleModelURL(info.ChannelBaseUrl, DefaultAPIVersion, projectID, region, modelName, suffix), nil
 		} else if a.RequestMode == RequestModeClaude {
-			return BuildAnthropicModelURL(info.ChannelBaseUrl, DefaultAPIVersion, adc.ProjectID, region, modelName, suffix), nil
+			return BuildAnthropicModelURL(info.ChannelBaseUrl, DefaultAPIVersion, projectID, region, modelName, suffix), nil
 		} else if a.RequestMode == RequestModeOpenSource {
-			return BuildOpenSourceChatCompletionsURL(info.ChannelBaseUrl, adc.ProjectID, region), nil
+			return BuildOpenSourceChatCompletionsURL(info.ChannelBaseUrl, projectID, region), nil
 		}
 	} else {
 		var keyPrefix string
@@ -152,22 +159,25 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 		} else {
 			keyPrefix = "?"
 		}
-		// An API key carries no project. Without a configured project ID the URL
-		// keeps the express-mode form, which has no region in its path.
-		projectID := strings.TrimSpace(info.ChannelOtherSettings.VertexProjectID)
+		// An API key is "<key>" or "<key>|<project>". A channel project ID wins.
+		// With neither, the URL stays in express mode and has no region in its path.
+		apiKey, projectID := SplitAPIKeyProject(info.ApiKey)
+		if configured := strings.TrimSpace(info.ChannelOtherSettings.VertexProjectID); configured != "" {
+			projectID = configured
+		}
 		if a.RequestMode == RequestModeGemini {
 			return fmt.Sprintf(
 				"%s%skey=%s",
 				BuildGoogleModelURL(info.ChannelBaseUrl, DefaultAPIVersion, projectID, region, modelName, suffix),
 				keyPrefix,
-				info.ApiKey,
+				apiKey,
 			), nil
 		} else if a.RequestMode == RequestModeClaude {
 			return fmt.Sprintf(
 				"%s%skey=%s",
 				BuildAnthropicModelURL(info.ChannelBaseUrl, DefaultAPIVersion, projectID, region, modelName, suffix),
 				keyPrefix,
-				info.ApiKey,
+				apiKey,
 			), nil
 		}
 	}

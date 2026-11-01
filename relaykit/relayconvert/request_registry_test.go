@@ -942,6 +942,92 @@ func TestConvertRequestOpenAIChatToGeminiAddsThoughtSignatureForAdvancedCustom(t
 	assert.Equal(t, sharedgemini.ThoughtSignatureBypassValue, thoughtSignature)
 }
 
+func TestGeminiToolCallThoughtSignatureRoundTripsThroughOpenAI(t *testing.T) {
+	signature := "sig-from-vertex"
+	encoded, err := kitutil.Marshal(signature)
+	require.NoError(t, err)
+	stop := "STOP"
+	openAI := ResponseGeminiChat2OpenAI("chatcmpl-1", 1, &dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{{
+			FinishReason: &stop,
+			Content: dto.GeminiChatContent{
+				Role: "model",
+				Parts: []dto.GeminiPart{{
+					FunctionCall: &dto.FunctionCall{
+						ID:           "call_1",
+						FunctionName: "lookup",
+						Arguments:    map[string]any{"q": "x"},
+					},
+					ThoughtSignature: encoded,
+				}},
+			},
+		}},
+	})
+	require.Len(t, openAI.Choices, 1)
+	calls := openAI.Choices[0].Message.ParseToolCalls()
+	require.Len(t, calls, 1)
+	require.NotNil(t, calls[0].ExtraContent)
+	require.NotNil(t, calls[0].ExtraContent.Google)
+	assert.Equal(t, signature, calls[0].ExtraContent.Google.ThoughtSignature)
+
+	assistant := dto.Message{Role: "assistant", Content: ""}
+	assistant.SetToolCalls(calls)
+	info := &convmeta.Values{
+		Options:             &convmeta.Options{Gemini: convmeta.GeminiOptions{FunctionCallThoughtSignatureEnabled: true}},
+		ConversionChain:     []types.RelayFormat{types.RelayFormatOpenAI},
+		ChannelMetaAttached: true,
+		UpstreamModelName:   "gemini-4-argon",
+	}
+	result, err := ConvertRequest(nil, info, types.RelayFormatGemini, &dto.GeneralOpenAIRequest{
+		Model: "gemini-4-argon",
+		Messages: []dto.Message{
+			{Role: "user", Content: "hi"},
+			assistant,
+			{Role: "tool", ToolCallId: "call_1", Content: `{"ok":true}`},
+		},
+	})
+	require.NoError(t, err)
+	geminiReq, ok := result.Value.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+	require.GreaterOrEqual(t, len(geminiReq.Contents), 2)
+	var replayed string
+	require.NoError(t, kitutil.Unmarshal(geminiReq.Contents[1].Parts[0].ThoughtSignature, &replayed))
+	assert.Equal(t, signature, replayed)
+}
+
+func TestConvertRequestResponsesToGeminiKeepsClientThoughtSignature(t *testing.T) {
+	info := &convmeta.Values{
+		Options:             &convmeta.Options{Gemini: convmeta.GeminiOptions{FunctionCallThoughtSignatureEnabled: true}},
+		ConversionChain:     []types.RelayFormat{types.RelayFormatOpenAIResponses},
+		ChannelMetaAttached: true,
+		UpstreamModelName:   "gemini-4-argon",
+	}
+	req := &dto.OpenAIResponsesRequest{
+		Model: "gemini-4-argon",
+		Input: mustRawMessage(t, []map[string]any{
+			{
+				"type":      "function_call",
+				"call_id":   "call_1",
+				"name":      "lookup",
+				"arguments": map[string]any{"q": "x"},
+				"extra_content": map[string]any{
+					"google": map[string]any{"thought_signature": "sig-from-vertex"},
+				},
+			},
+		}),
+	}
+
+	result, err := ConvertRequest(nil, info, types.RelayFormatGemini, req)
+
+	require.NoError(t, err)
+	geminiReq, ok := result.Value.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+	require.Len(t, geminiReq.Contents, 1)
+	var thoughtSignature string
+	require.NoError(t, kitutil.Unmarshal(geminiReq.Contents[0].Parts[0].ThoughtSignature, &thoughtSignature))
+	assert.Equal(t, "sig-from-vertex", thoughtSignature)
+}
+
 func TestConvertRequestViaResponsesToGeminiStillUsesDirectSteps(t *testing.T) {
 	info := &convmeta.Values{
 		ConversionChain:     []types.RelayFormat{types.RelayFormatOpenAIResponses},

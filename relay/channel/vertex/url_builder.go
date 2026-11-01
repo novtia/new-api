@@ -12,6 +12,18 @@ const (
 	PublisherAnthropic   = "anthropic"
 )
 
+// SplitAPIKeyProject splits a Vertex API-key credential, which is either
+// "<api-key>" or "<api-key>|<project-id>".
+//
+// Without a project the request URL has no "projects/.../locations/..." part
+// and Google picks the region itself (observed: asia-southeast1 for the global
+// endpoint), where newer publisher models may not exist. Supplying the project
+// pins the URL to the configured region.
+func SplitAPIKeyProject(raw string) (apiKey, projectID string) {
+	apiKey, projectID, _ = strings.Cut(strings.TrimSpace(raw), "|")
+	return strings.TrimSpace(apiKey), strings.TrimSpace(projectID)
+}
+
 func normalizeVertexBaseURL(baseURL string) string {
 	return strings.TrimRight(strings.TrimSpace(baseURL), "/")
 }

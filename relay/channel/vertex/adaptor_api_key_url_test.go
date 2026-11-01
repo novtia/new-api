@@ -1,10 +1,12 @@
 package vertex
 
 import (
+	"encoding/json"
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,4 +61,38 @@ func TestGetRequestURLWithAPIKey(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestConvertGeminiRequestKeepsFunctionIDsWhenStripDisabled(t *testing.T) {
+	settings := model_setting.GetGeminiSettings()
+	previous := settings.RemoveFunctionResponseIdEnabled
+	settings.RemoveFunctionResponseIdEnabled = false
+	t.Cleanup(func() { settings.RemoveFunctionResponseIdEnabled = previous })
+
+	request := &dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{
+			{
+				Role: "model",
+				Parts: []dto.GeminiPart{{
+					FunctionCall: &dto.FunctionCall{ID: "call_1", FunctionName: "lookup", Arguments: map[string]any{}},
+				}},
+			},
+			{
+				Role: "user",
+				Parts: []dto.GeminiPart{{
+					FunctionResponse: &dto.GeminiFunctionResponse{
+						Name:     "lookup",
+						ID:       json.RawMessage(`"call_1"`),
+						Response: map[string]any{"ok": true},
+					},
+				}},
+			},
+		},
+	}
+	got, err := (&Adaptor{RequestMode: RequestModeGemini}).ConvertGeminiRequest(nil, &relaycommon.RelayInfo{}, request)
+	require.NoError(t, err)
+	converted, ok := got.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+	assert.Equal(t, "call_1", converted.Contents[0].Parts[0].FunctionCall.ID)
+	assert.JSONEq(t, `"call_1"`, string(converted.Contents[1].Parts[0].FunctionResponse.ID))
 }

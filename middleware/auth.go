@@ -526,6 +526,16 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 }
 
 func TokenAuth() func(c *gin.Context) {
+	return tokenAuth(true)
+}
+
+// TokenAuthWithoutPoolLock 与 TokenAuth 执行相同的令牌、IP、分组与 Pin 校验，
+// 但不占用公益池的并发名额，适用于只读状态查询（如 GET /user/subscription）。
+func TokenAuthWithoutPoolLock() func(c *gin.Context) {
+	return tokenAuth(false)
+}
+
+func tokenAuth(acquirePublicPool bool) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		// 先检测是否为ws
 		applyWebSocketSubprotocolAuthorization(c.Request.Header)
@@ -641,6 +651,16 @@ func TokenAuth() func(c *gin.Context) {
 		err = SetupContextForToken(c, token, parts...)
 		if err != nil {
 			return
+		}
+		if acquirePublicPool {
+			// 访客公益 Key 同时只能有一个进行中的调用。名额覆盖 c.Next() 的全部耗时，
+			// 包括流式响应，直到处理函数返回。余额查询与只读状态查询不占这个名额。
+			release, ok := model.AcquirePublicPoolCall(token.Id)
+			if !ok {
+				abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgPublicPoolConcurrent))
+				return
+			}
+			defer release()
 		}
 		c.Next()
 	}

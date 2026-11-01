@@ -1,6 +1,10 @@
 package common
 
-import "net"
+import (
+	"net"
+
+	"github.com/gin-gonic/gin"
+)
 
 func IsIP(s string) bool {
 	ip := net.ParseIP(s)
@@ -48,4 +52,13 @@ func IsIpInCIDRList(ip net.IP, cidrList []string) bool {
 		}
 	}
 	return false
+}
+
+// RealClientIP 返回访客真实 IP。站点位于 Cloudflare 之后，c.ClientIP() 可能是 Cloudflare 边缘节点，
+// 多个访客会共用同一个限流计数，所以优先使用 Cloudflare 传入的 CF-Connecting-IP。
+func RealClientIP(c *gin.Context) string {
+	if v := c.GetHeader("CF-Connecting-IP"); IsIP(v) {
+		return v
+	}
+	return c.ClientIP()
 }
